@@ -1,20 +1,81 @@
-from flask import Flask, render_template, request, redirect #Imports Flask library
+import json
+import re
+from flask import Flask, render_template, request, flash, redirect,url_for
 
-app =  Flask(__name__) #Creates a website in a variable called "app"
+app = Flask(__name__)
+app.secret_key = 'f3cfe9ed8fae309f02079dbf'
 
-@app.route('/') #Decorator "@" is used to augment function definitions. If browser requests the address '/' (the default, or home address), then our app should route that request to this function.
+#load input from file
+with open('outputfile.json') as file:
+    todolist = json.load(file)
 
-def index():
-    author = "Me"
-    name = "David"
-    return render_template('index.html', author=author, name=name) #Sends author and name variable to html
 
-@app.route('/signup', methods = ['POST']) #We apply a decorator to the signup function, saying that we want it to be used when the browser requests /signup. It will accept the HTTP POST method, which you can see is mentioned in the HTML form element as method="post".
+@app.route('/')
+def home():
+    """Home route"""
+    todo=todolist
+    #render the index page
+    return render_template('index.html',todolist=todo)
 
-def signup():
-    email = request.form['email'] #In the signup method we can retrieve the email address using the request object. In the HTML we used name="email", which means that in the request object we can use request.form["email"]. When we write request.form["email"] we are using request.form as a Python Dictionary
-    print("The email address is '" + email + "'")
-    return redirect('/')
+
+@app.route("/submit",methods=["post"])
+def submit():
+    """Function to receive Post data"""
+    errors=[] #list to hold errors
+
+    #get data
+    email=request.form['email']
+    task=request.form['task']
+    priority=request.form['priority']
+
+    input_priority=['low','medium', 'high']
+    #validation
+    email_regex='^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$'
+    if not (re.search(email_regex,email)): #validation for email
+        errors.append('Invalid Email')
+    
+    if priority not in input_priority: #validation for priority
+        errors.append('Invalid Priority')
+
+    if len(errors)>0:
+        for i in errors:
+            flash(i)
+        return redirect(url_for('home'))
+    else:
+        dictionary=dict()
+        if len(todolist)>0:
+            dictionary["id"] = todolist[len(todolist)-1]["id"]+1
+        else:
+            dictionary["id"] = 1
+        dictionary["task"]=task
+        dictionary["email"]=email
+        dictionary["priority"]=priority
+        todolist.append(dictionary)
+
+        return redirect(url_for('home'))
+
+@app.route("/delete/<id>")
+def delete(id):
+    """Function to delete a task"""
+    for x in range(0,len(todolist)):
+        if todolist[x]["id"]==int(id):
+            todolist.pop(x)             
+    return redirect(url_for('home'))
+
+@app.route("/clear", methods=["post"])
+def clear():
+    """Function to clear the tasks"""
+    todolist.clear()
+    return redirect(url_for('home'))
+
+@app.route("/save")
+def save():
+    """Function to clear the tasks"""
+    with open('outputfile.json', 'w') as fout:
+        json.dump(todolist, fout)
+    flash("Your To do tasks have been saved")
+    return redirect(url_for('home'))
+
 
 if __name__ == "__main__":
     app.run(debug=True)
